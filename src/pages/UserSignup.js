@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, Link, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import Navbar from "../components/Navbar";
 
@@ -10,7 +10,7 @@ function UserSignup() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { loginWithGoogle, signupWithEmail, setRole, currentUser, role } = useAuth();
+  const { signupWithEmail, setRole, currentUser, role } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 

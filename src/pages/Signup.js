@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import Navbar from "../components/Navbar";
 
@@ -11,7 +11,7 @@ function Signup() {
   const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { loginWithGoogle, signupWithEmail, setRole, currentUser, role } = useAuth();
+  const { signupWithEmail, setRole, currentUser, role } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {

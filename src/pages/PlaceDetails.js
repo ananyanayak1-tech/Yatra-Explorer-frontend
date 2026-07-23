@@ -129,6 +129,7 @@ function PlaceDetails({ places, refetchPlaces }) {
 
   useEffect(() => {
     fetchReviews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [place]);
 
   useEffect(() => {
@@ -254,6 +255,7 @@ function PlaceDetails({ places, refetchPlaces }) {
 
   useEffect(() => {
     checkIfBooked();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [place, currentUser]);
 
   const handleBookingToggle = () => {

@@ -12,7 +12,7 @@ function Login() {
   const [inviteCode, setInviteCode] = useState("");
   
   const isCodeValid = inviteCode.trim() === (process.env.REACT_APP_ADMIN_INVITE_CODE || "ADMIN123");
-  const { loginWithGoogle, loginWithEmail, setRole, logout, currentUser, role } = useAuth();
+  const { loginWithGoogle, loginWithEmail, setRole, currentUser, role } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
