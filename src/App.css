@@ -4624,3 +4624,131 @@ a.navbar-admin-badge:hover {
   transform: none !important;
   box-shadow: 0 4px 10px rgba(16, 185, 129, 0.15) !important;
 }
+
+/* ===== Comprehensive Mobile Responsiveness Overrides (Phone & Tablet) ===== */
+@media (max-width: 768px) {
+  /* Navbar */
+  .navbar {
+    padding: 10px 16px !important;
+    flex-direction: column !important;
+    gap: 12px !important;
+    height: auto !important;
+  }
+  .navbar-logo-img {
+    height: 40px !important;
+    max-width: 200px !important;
+  }
+  .navbar-links {
+    width: 100% !important;
+    justify-content: center !important;
+    gap: 10px !important;
+    flex-wrap: wrap !important;
+  }
+  .navbar-link {
+    padding: 6px 10px !important;
+    font-size: 0.85rem !important;
+  }
+  .navbar-admin-profile {
+    gap: 6px !important;
+  }
+  .navbar-admin-name {
+    font-size: 0.85rem !important;
+  }
+
+  /* Main containers */
+  .main-grid-section {
+    padding: 16px !important;
+    margin: 0 auto !important;
+  }
+  .section-title {
+    font-size: 1.5rem !important;
+    margin-bottom: 16px !important;
+  }
+
+  /* Hero Banner Carousel */
+  .hero-banner {
+    height: 240px !important;
+  }
+  .hero-content h1 {
+    font-size: 1.6rem !important;
+    line-height: 1.2 !important;
+  }
+  .hero-content p {
+    font-size: 0.85rem !important;
+  }
+
+  /* Search & Filters Bar */
+  .searchbar-container {
+    flex-direction: column !important;
+    gap: 10px !important;
+    padding: 12px !important;
+    margin: 16px 0 !important;
+    background: var(--surface) !important;
+    border-radius: 12px !important;
+    box-shadow: var(--shadow) !important;
+  }
+  .search-input-wrapper {
+    width: 100% !important;
+  }
+  .filter-select, .search-input {
+    width: 100% !important;
+    font-size: 0.9rem !important;
+    padding: 10px 12px !important;
+    height: 42px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Grids & Cards */
+  .places-grid, .bookings-grid {
+    grid-template-columns: 1fr !important; /* Single column on phones */
+    gap: 16px !important;
+  }
+  .place-card {
+    max-width: 100% !important;
+  }
+
+  /* Place Details Page */
+  .place-details-container {
+    padding: 12px !important;
+  }
+  .place-detail-header-card {
+    height: 260px !important;
+  }
+  .place-detail-header-card h1 {
+    font-size: 1.8rem !important;
+  }
+  .place-info-grid {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+  .booking-header-row {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px !important;
+  }
+  .booking-form-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Reviews Section */
+  .reviews-summary-card {
+    flex-direction: column !important;
+    gap: 20px !important;
+    align-items: center !important;
+    text-align: center !important;
+  }
+  .summary-right {
+    width: 100% !important;
+  }
+
+  /* User Login & Signup Forms */
+  .auth-card {
+    padding: 24px 16px !important;
+    margin: 20px auto !important;
+    max-width: 100% !important;
+  }
+  .auth-card h2 {
+    font-size: 1.75rem !important;
+  }
+}
