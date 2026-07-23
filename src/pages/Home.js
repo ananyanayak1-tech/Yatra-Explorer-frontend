@@ -7,8 +7,7 @@ import PlaceCard from "../components/PlaceCard";
 import ExploreMoreCard from "../components/ExploreMoreCard";
 import Spinner from "../components/Spinner";
 import ChatWidget from "../components/ChatWidget";
-import { useToast } from "../ToastContext";
-import { useAuth } from "../AuthContext";
+
 import { LuSparkles, LuStar, LuCalendar } from "react-icons/lu";
 
 const carouselSlides = [
@@ -42,9 +41,8 @@ function Home({ places }) {
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
-  const { showToast } = useToast();
-  const { currentUser } = useAuth();
-  const [favoriteIds, setFavoriteIds] = useState([]);
+
+
 
   // States for backend-driven filtering on the main grid
   const [filteredPlaces, setFilteredPlaces] = useState([]);
@@ -103,63 +101,7 @@ function Home({ places }) {
     setSearchParams({}, { replace: true });
   };
 
-  useEffect(() => {
-    const handleStorageChange = () => {
-      if (!currentUser) {
-        setFavoriteIds([]);
-        return;
-      }
-      const key = `tourist-places-favorites-${currentUser.email}`;
-      let saved = localStorage.getItem(key);
-      if (!saved) {
-        const oldSaved = localStorage.getItem("tourist-places-favorites");
-        if (oldSaved) {
-          saved = oldSaved;
-          localStorage.setItem(key, oldSaved);
-        }
-      }
-      if (saved) {
-        try {
-          setFavoriteIds(JSON.parse(saved));
-        } catch (e) {
-          console.error(e);
-        }
-      } else {
-        setFavoriteIds([]);
-      }
-    };
-    window.addEventListener("storage", handleStorageChange);
-    handleStorageChange();
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, [currentUser]);
 
-  const toggleFavoriteHome = (e, placeId) => {
-    e.stopPropagation();
-    if (!currentUser) {
-      navigate(`/user/login?redirect=${encodeURIComponent(window.location.pathname)}`);
-      return;
-    }
-    const key = `tourist-places-favorites-${currentUser.email}`;
-    const saved = localStorage.getItem(key);
-    let favIds = [];
-    if (saved) {
-      try {
-        favIds = JSON.parse(saved);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-    if (favIds.includes(placeId)) {
-      favIds = favIds.filter((id) => id !== placeId);
-      showToast("Removed from Favorites", "info");
-    } else {
-      favIds.push(placeId);
-      showToast("Added to Favorites", "success");
-    }
-    setFavoriteIds(favIds);
-    localStorage.setItem(key, JSON.stringify(favIds));
-    window.dispatchEvent(new Event("storage"));
-  };
 
   // Sync category state with query parameters is handled directly from URL params
 

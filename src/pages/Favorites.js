@@ -101,12 +101,14 @@ function Favorites({ places, refetchPlaces }) {
 
   useEffect(() => {
     loadUserReviews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [places, currentUser]);
 
   useEffect(() => {
     if (activeTab === "bookings") {
       loadUserBookings();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, currentUser]);
 
   const handleDeleteReview = async (reviewId) => {
