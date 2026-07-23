@@ -4690,10 +4690,17 @@ a.navbar-admin-badge:hover {
   .search-input-wrapper {
     width: 100% !important;
   }
-  .filter-select, .search-input {
+  .filter-select {
     width: 100% !important;
     font-size: 0.9rem !important;
     padding: 10px 12px !important;
+    height: 42px !important;
+    box-sizing: border-box !important;
+  }
+  .search-input {
+    width: 100% !important;
+    font-size: 0.9rem !important;
+    padding: 10px 12px 10px 42px !important;
     height: 42px !important;
     box-sizing: border-box !important;
   }
