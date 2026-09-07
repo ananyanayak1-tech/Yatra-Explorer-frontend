@@ -77,6 +77,7 @@ export function AuthProvider({ children }) {
         const client = window.google.accounts.oauth2.initTokenClient({
           client_id: clientId,
           scope: "email profile openid",
+          prompt: "consent",
           callback: async (tokenResponse) => {
             if (tokenResponse.error) {
               return reject(tokenResponse);
@@ -93,7 +94,7 @@ export function AuthProvider({ children }) {
             reject(err);
           }
         });
-        client.requestAccessToken();
+        client.requestAccessToken({ prompt: "consent" });
       } else {
         signInWithPopup(auth, googleProvider).then(resolve).catch(reject);
       }
