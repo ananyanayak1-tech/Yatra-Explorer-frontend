@@ -132,20 +132,26 @@ function EditPlace({ places, updatePlace }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!validate()) return;
 
-    updatePlace(id, {
-      ...formData,
-      entryFee: Number(formData.entryFee),
-      latitude: formData.latitude !== "" && formData.latitude !== undefined && formData.latitude !== null ? Number(formData.latitude) : undefined,
-      longitude: formData.longitude !== "" && formData.longitude !== undefined && formData.longitude !== null ? Number(formData.longitude) : undefined,
-    });
+    try {
+      await updatePlace(id, {
+        ...formData,
+        entryFee: Number(formData.entryFee),
+        latitude: formData.latitude !== "" && formData.latitude !== undefined && formData.latitude !== null ? Number(formData.latitude) : undefined,
+        longitude: formData.longitude !== "" && formData.longitude !== undefined && formData.longitude !== null ? Number(formData.longitude) : undefined,
+      });
 
-    showToast("✅ Place updated successfully!", "success");
-    navigate("/admin");
+      showToast("✅ Place updated successfully!", "success");
+      navigate("/admin");
+    } catch (err) {
+      console.error("Failed to update place:", err);
+      const msg = err.response?.data?.message || err.message || "Failed to update place";
+      showToast(`❌ ${msg}`, "danger");
+    }
   };
 
   if (!existingPlace) {

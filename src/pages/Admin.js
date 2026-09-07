@@ -5,7 +5,7 @@ import Navbar from "../components/Navbar";
 import { useToast } from "../ToastContext";
 import { LuMap, LuFileText, LuStar, LuChartBar } from "react-icons/lu";
 
-function Admin({ places, deletePlace }) {
+function Admin({ places, deletePlace, refetchPlaces }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
   
@@ -25,27 +25,40 @@ function Admin({ places, deletePlace }) {
   const [newCategoryName, setNewCategoryName] = useState("");
   const [deleteConfirmState, setDeleteConfirmState] = useState({ show: false, placeId: null, placeName: "" });
 
+  // Refetch latest places on component mount
+  useEffect(() => {
+    if (typeof refetchPlaces === "function") {
+      refetchPlaces();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch all reviews in a single bulk call rather than N+1 queries
+  const placesCount = (places || []).length;
   useEffect(() => {
     const fetchAllReviews = async () => {
       setLoadingReviews(true);
       try {
-        const allReviewsData = await Promise.all(
-          places.map(async (place) => {
-            const res = await axios.get(`http://localhost:5000/api/reviews/${place._id}`);
-            return (res.data || []).map((rev) => ({
-              ...rev,
-              placeName: place.name,
-              placeImage: place.image,
-              placeId: place._id,
-              placeCategory: place.category || "Other"
-            }));
-          })
-        );
-        const flattened = allReviewsData.flat();
-        flattened.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        
-        setReviewsList(flattened);
-        setTotalReviews(flattened.length);
+        const res = await axios.get("http://localhost:5000/api/reviews");
+        const allReviews = Array.isArray(res.data) ? res.data : [];
+        const placesMap = {};
+        (places || []).forEach((p) => {
+          placesMap[String(p._id)] = p;
+        });
+
+        const enriched = allReviews.map((rev) => {
+          const matchedPlace = placesMap[String(rev.placeId)] || {};
+          return {
+            ...rev,
+            placeName: matchedPlace.name || rev.placeName || "Destination",
+            placeImage: matchedPlace.image || rev.placeImage || "",
+            placeId: rev.placeId,
+            placeCategory: matchedPlace.category || "Other"
+          };
+        });
+
+        enriched.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        setReviewsList(enriched);
+        setTotalReviews(enriched.length);
       } catch (err) {
         console.error("Error fetching all reviews:", err);
       } finally {
@@ -53,10 +66,9 @@ function Admin({ places, deletePlace }) {
       }
     };
 
-    if (places.length > 0) {
-      fetchAllReviews();
-    }
-  }, [places]);
+    fetchAllReviews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [placesCount]);
 
   useEffect(() => {
     const loadCategories = async () => {

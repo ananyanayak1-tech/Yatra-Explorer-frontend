@@ -12,9 +12,21 @@ function Favorites({ places, refetchPlaces }) {
   const [userReviews, setUserReviews] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
+  const [selectedVoucher, setSelectedVoucher] = useState(null);
   
   const { currentUser } = useAuth();
   const { showToast } = useToast();
+
+  const getBookingAddon = (placeId) => {
+    if (!currentUser) return null;
+    try {
+      const key = `user-booking-addons-${currentUser.email}`;
+      const list = JSON.parse(localStorage.getItem(key) || "[]");
+      return list.find((v) => v.placeId === placeId) || null;
+    } catch (e) {
+      return null;
+    }
+  };
 
   const favoritePlaces = places.filter((place) => favoriteIds.includes(place._id));
 
@@ -263,12 +275,40 @@ function Favorites({ places, refetchPlaces }) {
                         <p><strong>Days:</strong> {booking.numberOfDays}</p>
                         <p><strong>Travelers:</strong> {booking.numberOfTravelers}</p>
                       </div>
-                      <button 
-                        className="delete-review-btn cancel-booking-btn"
-                        onClick={() => handleCancelBooking(booking._id)}
-                      >
-                        Cancel Booking
-                      </button>
+
+                      <div className="booking-card-actions">
+                        <button
+                          type="button"
+                          className="view-voucher-action-btn"
+                          onClick={() => {
+                            const addon = getBookingAddon(booking.placeId);
+                            const voucher = {
+                              bookingId: booking.bookingRefId || addon?.bookingId || `YTR-${booking._id ? booking._id.slice(-6).toUpperCase() : "BK99"}`,
+                              userName: currentUser?.displayName || currentUser?.email?.split("@")[0] || "Traveler",
+                              userEmail: currentUser?.email || "",
+                              placeName: booking.placeName,
+                              placeCity: placeObj ? placeObj.city : "",
+                              placeState: placeObj ? placeObj.state : "",
+                              placeImage: placeImage,
+                              checkInDate: booking.checkInDate,
+                              numberOfDays: booking.numberOfDays,
+                              numberOfTravelers: booking.numberOfTravelers,
+                              totalEstimatedCost: booking.totalEstimatedCost || addon?.totalEstimatedCost || ((placeObj?.entryFee || 50) * booking.numberOfTravelers),
+                              weatherTip: "Pleasant sightseeing weather",
+                              generatedAt: new Date(booking.createdAt || Date.now()).toLocaleDateString("en-IN")
+                            };
+                            setSelectedVoucher(voucher);
+                          }}
+                        >
+                          View Voucher
+                        </button>
+                        <button 
+                          className="delete-review-btn cancel-booking-btn"
+                          onClick={() => handleCancelBooking(booking._id)}
+                        >
+                          Cancel Booking
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -288,6 +328,89 @@ function Favorites({ places, refetchPlaces }) {
           )
         )}
       </div>
+
+      {/* Selected Voucher Modal Popup */}
+      {selectedVoucher && (
+        <div className="voucher-modal-overlay" onClick={() => setSelectedVoucher(null)}>
+          <div className="voucher-modal-content animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="voucher-modal-header">
+              <div className="voucher-status-badge">
+                ✓ Verified Trip Voucher
+              </div>
+              <button className="voucher-close-btn" onClick={() => setSelectedVoucher(null)}>✕</button>
+            </div>
+
+            <div className="printable-voucher" id="printable-voucher-section">
+              <div className="voucher-brand-header">
+                <div>
+                  <h2 className="voucher-company-name">YATRA EXPLORER</h2>
+                </div>
+                <div className="voucher-code-box">
+                  <span className="voucher-code-label">Booking Reference</span>
+                  <span className="voucher-code-val">{selectedVoucher.bookingId}</span>
+                </div>
+              </div>
+
+              <div className="voucher-destination-card">
+                <img src={selectedVoucher.placeImage} alt={selectedVoucher.placeName} className="voucher-dest-img" />
+                <div className="voucher-dest-info">
+                  <h3>{selectedVoucher.placeName}</h3>
+                  <p className="voucher-dest-loc">{selectedVoucher.placeCity ? `${selectedVoucher.placeCity}, ` : ""}{selectedVoucher.placeState}</p>
+                  <span className="voucher-confirmed-pill">Confirmed Reservation</span>
+                </div>
+              </div>
+
+              <div className="voucher-specs-grid">
+                <div className="voucher-spec-item">
+                  <span className="v-label">Traveler Name</span>
+                  <span className="v-value">{selectedVoucher.userName}</span>
+                </div>
+                <div className="voucher-spec-item">
+                  <span className="v-label">Travel Date</span>
+                  <span className="v-value">{new Date(selectedVoucher.checkInDate).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" })}</span>
+                </div>
+                <div className="voucher-spec-item">
+                  <span className="v-label">Duration</span>
+                  <span className="v-value">{selectedVoucher.numberOfDays} Days</span>
+                </div>
+                <div className="voucher-spec-item">
+                  <span className="v-label">Travelers</span>
+                  <span className="v-value">{selectedVoucher.numberOfTravelers} Guests</span>
+                </div>
+              </div>
+              {/* Weather & Travel Reminder */}
+
+              <div className="voucher-advisory-box">
+                <p><strong>Destination Weather Reminder:</strong> Current forecast is {selectedVoucher.weatherTip || "Pleasant"}. Carry a valid government photo ID for monument check-in.</p>
+              </div>
+
+              <div className="voucher-footer-row">
+                <div className="voucher-total-block">
+                  <span className="voucher-total-label">Total Estimated Trip Budget</span>
+                  <span className="voucher-total-amount">₹{(selectedVoucher.totalEstimatedCost || 0).toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="voucher-modal-actions">
+              <button 
+                type="button"
+                className="voucher-print-btn" 
+                onClick={() => window.print()}
+              >
+                Print / Save as PDF
+              </button>
+              <button 
+                type="button"
+                className="voucher-continue-btn"
+                onClick={() => setSelectedVoucher(null)}
+              >
+                Close Voucher
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

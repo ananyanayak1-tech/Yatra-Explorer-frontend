@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import axios from "axios";
+import axios from 'axios';
+import { auth } from './firebase';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
@@ -8,9 +9,18 @@ import reportWebVitals from './reportWebVitals';
 // Redirect API calls from localhost to the hosted backend URL if configured
 const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 axios.interceptors.request.use(
-  (config) => {
+  async (config) => {
     if (config.url && config.url.startsWith("http://localhost:5000")) {
       config.url = config.url.replace("http://localhost:5000", API_BASE_URL);
+    }
+    try {
+      if (auth.currentUser) {
+        const token = await auth.currentUser.getIdToken();
+        config.headers = config.headers || {};
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (err) {
+      console.error("Failed to attach Firebase auth token to request:", err);
     }
     return config;
   },

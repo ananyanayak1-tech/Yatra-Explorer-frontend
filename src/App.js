@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import axios from "axios";
 import Home from "./pages/Home";
@@ -23,7 +23,7 @@ import "./App.css";
 function App() {
   const [places, setPlaces] = useState([]);
 
-  const fetchPlaces = async () => {
+  const fetchPlaces = useCallback(async () => {
     try {
       const res = await axios.get("http://localhost:5000/api/places");
       let data = [];
@@ -54,20 +54,22 @@ function App() {
         console.error("All places endpoints failed:", errAll);
       }
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchPlaces();
-  }, []);
+  }, [fetchPlaces]);
 
   // Add a new place
   const addPlace = async (newPlace) => {
     try {
       const { rating, ...payload } = newPlace;
-      await axios.post("http://localhost:5000/api/places", payload);
+      const res = await axios.post("http://localhost:5000/api/places", payload);
       await fetchPlaces();
+      return res.data;
     } catch (err) {
       console.error("Error adding place:", err);
+      throw err;
     }
   };
 
@@ -75,20 +77,24 @@ function App() {
   const updatePlace = async (id, updatedData) => {
     try {
       const { rating, ...payload } = updatedData;
-      await axios.put(`http://localhost:5000/api/places/${id}`, payload);
+      const res = await axios.put(`http://localhost:5000/api/places/${id}`, payload);
       await fetchPlaces();
+      return res.data;
     } catch (err) {
       console.error("Error updating place:", err);
+      throw err;
     }
   };
 
   // Delete a place
   const deletePlace = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/places/${id}`);
+      const res = await axios.delete(`http://localhost:5000/api/places/${id}`);
       await fetchPlaces();
+      return res.data;
     } catch (err) {
       console.error("Error deleting place:", err);
+      throw err;
     }
   };
 
@@ -119,7 +125,7 @@ function App() {
                   path="/admin"
                   element={
                     <ProtectedRoute requiredRole="admin">
-                      <Admin places={places} deletePlace={deletePlace} />
+                      <Admin places={places} deletePlace={deletePlace} refetchPlaces={fetchPlaces} />
                     </ProtectedRoute>
                   }
                 />

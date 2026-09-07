@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import Navbar from "../components/Navbar";
 
@@ -8,31 +8,22 @@ function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
-  const { signupWithEmail, setRole, currentUser, role } = useAuth();
+  const { signupWithEmail, logout, currentUser, role } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (currentUser) {
-      if (role === "admin") {
-        navigate("/admin");
-      } else if (role === "user") {
-        navigate("/home");
-      }
+    if (currentUser && role === "admin") {
+      navigate("/admin");
     }
   }, [currentUser, role, navigate]);
 
   const handleEmailSignup = async (e) => {
     e.preventDefault();
-    if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim() || !inviteCode.trim()) {
+    if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
       return setError("Please fill in all fields.");
-    }
-
-    const expectedCode = process.env.REACT_APP_ADMIN_INVITE_CODE || "ADMIN123";
-    if (inviteCode.trim() !== expectedCode) {
-      return setError("Invalid admin invite code");
     }
 
     if (password !== confirmPassword) {
@@ -45,17 +36,9 @@ function Signup() {
     try {
       setError("");
       setLoading(true);
-      const result = await signupWithEmail(email, password, name);
-      
-      const adminEmails = JSON.parse(localStorage.getItem("registered-admin-emails") || "[]");
-      if (result.user.email && !adminEmails.includes(result.user.email)) {
-        adminEmails.push(result.user.email);
-        localStorage.setItem("registered-admin-emails", JSON.stringify(adminEmails));
-      }
-
-      localStorage.setItem("user-role", "admin");
-      setRole("admin");
-      navigate("/admin");
+      await signupWithEmail(email, password, name);
+      await logout();
+      setSuccessMsg("Account registered successfully! An administrator must grant you admin privileges server-side before you can log in.");
     } catch (err) {
       console.error(err);
       setError("Failed to create an account. Email might already be in use.");
@@ -75,6 +58,16 @@ function Signup() {
           <p className="auth-tagline">Create an administrator account to manage places details.</p>
 
           {error && <div className="auth-error">{error}</div>}
+          {successMsg && (
+            <div className="auth-success" style={{ padding: "12px 16px", background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0", borderRadius: "8px", marginBottom: "16px", fontSize: "0.95rem" }}>
+              {successMsg}
+              <div style={{ marginTop: "10px" }}>
+                <Link to="/admin/login" style={{ color: "#15803d", fontWeight: "600", textDecoration: "underline" }}>
+                  Go to Admin Login →
+                </Link>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleEmailSignup} className="auth-form">
             <div className="form-group">
@@ -117,20 +110,14 @@ function Signup() {
                 required
               />
             </div>
-            <div className="form-group">
-              <label>Admin Invite Code</label>
-              <input
-                type="text"
-                placeholder="Enter invite code"
-                value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value)}
-                required
-              />
-            </div>
             <button type="submit" className="submit-btn auth-btn" disabled={loading}>
               {loading ? "Creating account..." : "Sign Up with Email"}
             </button>
           </form>
+
+          <p className="auth-footer" style={{ marginTop: "20px", textAlign: "center", fontSize: "0.9rem" }}>
+            Already have an account? <Link to="/admin/login">Log In</Link>
+          </p>
 
         </div>
       </div>

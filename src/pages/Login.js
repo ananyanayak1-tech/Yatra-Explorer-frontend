@@ -9,16 +9,13 @@ function Login() {
   const [error, setError] = useState("");
   const [emailLoading, setEmailLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [inviteCode, setInviteCode] = useState("");
-  
-  const isCodeValid = inviteCode.trim() === (process.env.REACT_APP_ADMIN_INVITE_CODE || "ADMIN123");
-  const { loginWithGoogle, loginWithEmail, setRole, currentUser, role } = useAuth();
+  const { loginWithGoogle, loginWithEmail, logout, setRole, currentUser, role } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   useEffect(() => {
-    if (currentUser) {
-      const redirect = searchParams.get("redirect") || (role === "admin" ? "/admin" : "/");
+    if (currentUser && role === "admin") {
+      const redirect = searchParams.get("redirect") || "/admin";
       navigate(redirect, { replace: true });
     }
   }, [currentUser, role, navigate, searchParams]);
@@ -31,10 +28,15 @@ function Login() {
     try {
       setError("");
       setEmailLoading(true);
-      await loginWithEmail(email, password);
-      localStorage.setItem("user-role", "admin");
-      setRole("admin");
-      navigate(searchParams.get("redirect") || "/admin");
+      const userCredential = await loginWithEmail(email, password);
+      const tokenResult = await userCredential.user.getIdTokenResult(true);
+      if (tokenResult.claims && tokenResult.claims.admin === true) {
+        setRole("admin");
+        navigate(searchParams.get("redirect") || "/admin");
+      } else {
+        await logout();
+        setError("Access denied: This account does not have administrator privileges.");
+      }
     } catch (err) {
       console.error(err);
       setError("Failed to sign in. Please check your credentials.");
@@ -44,31 +46,18 @@ function Login() {
   };
 
   const handleGoogleLogin = async () => {
-    const expectedCode = process.env.REACT_APP_ADMIN_INVITE_CODE || "ADMIN123";
-    if (!inviteCode.trim()) {
-      setError("Please enter the admin invite code first");
-      return;
-    }
-    if (inviteCode.trim() !== expectedCode) {
-      setError("Invalid admin invite code");
-      return;
-    }
-
     try {
       setError("");
       setGoogleLoading(true);
-      const result = await loginWithGoogle();
-
-      // Automatically register user email in registered-admin-emails if not present
-      const adminEmails = JSON.parse(localStorage.getItem("registered-admin-emails") || "[]");
-      if (result.user.email && !adminEmails.includes(result.user.email)) {
-        adminEmails.push(result.user.email);
-        localStorage.setItem("registered-admin-emails", JSON.stringify(adminEmails));
+      const userCredential = await loginWithGoogle();
+      const tokenResult = await userCredential.user.getIdTokenResult(true);
+      if (tokenResult.claims && tokenResult.claims.admin === true) {
+        setRole("admin");
+        navigate(searchParams.get("redirect") || "/admin");
+      } else {
+        await logout();
+        setError("Access denied: This Google account does not have administrator privileges.");
       }
-
-      localStorage.setItem("user-role", "admin");
-      setRole("admin");
-      navigate(searchParams.get("redirect") || "/admin");
     } catch (err) {
       console.error(err);
       setError("Failed to sign in with Google.");
@@ -117,19 +106,9 @@ function Login() {
             <span>or</span>
           </div>
 
-          <div className="form-group" style={{ marginBottom: "16px" }}>
-            <label>Admin Invite Code (Required for Google Sign In)</label>
-            <input
-              type="text"
-              placeholder="Enter invite code to sign in with Google"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-            />
-          </div>
-
           <button 
             onClick={handleGoogleLogin} 
-            className={`google-btn ${!isCodeValid ? "google-btn-inactive" : ""}`}
+            className="google-btn"
             disabled={emailLoading || googleLoading}
           >
             <svg viewBox="0 0 24 24" className="google-icon">

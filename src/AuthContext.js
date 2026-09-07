@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { 
   auth, 
   googleProvider, 
+  GoogleAuthProvider,
+  signInWithCredential,
   signInWithPopup, 
   signOut, 
   signInWithEmailAndPassword, 
@@ -18,10 +20,29 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    // Ensure Google Identity Services script is available
+    if (!document.getElementById("google-gsi-client")) {
+      const script = document.createElement("script");
+      script.id = "google-gsi-client";
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
       if (user) {
-        setRole(localStorage.getItem("user-role"));
+        try {
+          const tokenResult = await user.getIdTokenResult();
+          const userRole = tokenResult.claims && tokenResult.claims.admin === true ? "admin" : "user";
+          setRole(userRole);
+          localStorage.setItem("user-role", userRole);
+        } catch (err) {
+          console.error("Error fetching token claims:", err);
+          setRole("user");
+          localStorage.setItem("user-role", "user");
+        }
       } else {
         setRole(null);
         localStorage.removeItem("user-role");
@@ -31,8 +52,52 @@ export function AuthProvider({ children }) {
     return unsubscribe;
   }, []);
 
+  const refreshRole = async () => {
+    if (auth.currentUser) {
+      try {
+        const tokenResult = await auth.currentUser.getIdTokenResult(true);
+        const userRole = tokenResult.claims && tokenResult.claims.admin === true ? "admin" : "user";
+        setRole(userRole);
+        localStorage.setItem("user-role", userRole);
+        return userRole;
+      } catch (err) {
+        console.error("Error refreshing token claims:", err);
+      }
+    }
+    return null;
+  };
+
   const loginWithGoogle = () => {
-    return signInWithPopup(auth, googleProvider);
+    return new Promise((resolve, reject) => {
+      const clientId = process.env.REACT_APP_GOOGLE_CLIENT_ID;
+
+      if (window.google?.accounts?.oauth2) {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: "email profile openid",
+          callback: async (tokenResponse) => {
+            if (tokenResponse.error) {
+              return reject(tokenResponse);
+            }
+            try {
+              const credential = GoogleAuthProvider.credential(null, tokenResponse.access_token);
+              const userCredential = await signInWithCredential(auth, credential);
+              resolve(userCredential);
+            } catch (err) {
+              reject(err);
+            }
+          },
+          error_callback: (err) => {
+            reject(err);
+          }
+        });
+        client.requestAccessToken();
+      } else {
+        signInWithPopup(auth, googleProvider)
+          .then(resolve)
+          .catch(reject);
+      }
+    });
   };
 
   const loginWithEmail = (email, password) => {
@@ -57,6 +122,7 @@ export function AuthProvider({ children }) {
     currentUser,
     role,
     setRole,
+    refreshRole,
     loginWithGoogle,
     loginWithEmail,
     signupWithEmail,

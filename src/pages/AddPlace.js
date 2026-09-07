@@ -82,21 +82,27 @@ function AddPlace({ addPlace }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
 
     if (!validate()) return;
 
-    addPlace({
-      ...formData,
-      entryFee: Number(formData.entryFee),
-      latitude: formData.latitude !== "" ? Number(formData.latitude) : undefined,
-      longitude: formData.longitude !== "" ? Number(formData.longitude) : undefined,
-      rating: 0, // default placeholder rating
-    });
+    try {
+      await addPlace({
+        ...formData,
+        entryFee: Number(formData.entryFee),
+        latitude: formData.latitude !== "" ? Number(formData.latitude) : undefined,
+        longitude: formData.longitude !== "" ? Number(formData.longitude) : undefined,
+        rating: 0, // default placeholder rating
+      });
 
-    showToast("✅ Place added successfully!", "success");
-    navigate("/admin");
+      showToast("✅ Place added successfully!", "success");
+      navigate("/admin");
+    } catch (err) {
+      console.error("Failed to add place:", err);
+      const msg = err.response?.data?.message || err.message || "Failed to add place";
+      showToast(`❌ ${msg}`, "danger");
+    }
   };
 
   return (

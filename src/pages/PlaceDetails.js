@@ -6,7 +6,22 @@ import Spinner from "../components/Spinner";
 import starIcon from "../assets/star.png";
 import { useToast } from "../ToastContext";
 import { useAuth } from "../AuthContext";
-import { LuMapPin, LuMap, LuSun, LuCloudSun, LuCloudFog, LuCloudRain, LuSnowflake, LuCloudDrizzle, LuCloudLightning, LuThermometer } from "react-icons/lu";
+import { 
+  LuMapPin, 
+  LuMap, 
+  LuSun, 
+  LuCloudSun, 
+  LuCloudFog, 
+  LuCloudRain, 
+  LuSnowflake, 
+  LuCloudDrizzle, 
+  LuCloudLightning, 
+  LuThermometer,
+  LuMaximize2,
+  LuExternalLink,
+  LuCompass
+} from "react-icons/lu";
+import AudioGuidePlayer from "../components/AudioGuidePlayer";
 
 function PlaceDetails({ places, refetchPlaces }) {
   const { id } = useParams();
@@ -19,6 +34,10 @@ function PlaceDetails({ places, refetchPlaces }) {
   const [loadingPlace, setLoadingPlace] = useState(true);
   const [weather, setWeather] = useState(null);
   const [loadingWeather, setLoadingWeather] = useState(false);
+  const [showVoucherModal, setShowVoucherModal] = useState(false);
+  const [voucherData, setVoucherData] = useState(null);
+  const [showLargeMap, setShowLargeMap] = useState(false);
+  const [mapViewMode, setMapViewMode] = useState("street"); // "street" | "aerial"
 
   const getWeatherDetails = (code) => {
     if (code === 0) return { label: "Clear Sky", icon: LuSun };
@@ -288,18 +307,54 @@ function PlaceDetails({ places, refetchPlaces }) {
     try {
       setBookingError("");
       setBookingSubmitLoading(true);
-      
+
+      const days = Number(bookingForm.numberOfDays) || 1;
+      const travelers = Number(bookingForm.numberOfTravelers) || 1;
+      const totalEstimatedCost = (place.entryFee || 0) * travelers;
+
+      const bookingRefId = "YTR-" + (place._id ? place._id.slice(-4).toUpperCase() : "EXP") + "-" + Math.floor(1000 + Math.random() * 9000);
+
       const payload = {
         placeId: place._id,
         placeName: place.name,
         userEmail: currentUser.email,
         checkInDate: bookingForm.checkInDate,
-        numberOfDays: Number(bookingForm.numberOfDays),
-        numberOfTravelers: Number(bookingForm.numberOfTravelers)
+        numberOfDays: days,
+        numberOfTravelers: travelers,
+        totalEstimatedCost
       };
 
       await axios.post("http://localhost:5000/api/bookings", payload);
-      showToast("Booking confirmed!", "success");
+
+      const voucherInfo = {
+        bookingId: bookingRefId,
+        placeId: place._id,
+        placeName: place.name,
+        placeCity: place.city,
+        placeState: place.state,
+        placeImage: place.image,
+        userEmail: currentUser.email,
+        userName: currentUser.displayName || currentUser.email.split("@")[0],
+        checkInDate: bookingForm.checkInDate,
+        numberOfDays: days,
+        numberOfTravelers: travelers,
+        totalEstimatedCost,
+        createdAt: new Date().toISOString(),
+        weatherTip: weather ? `${Math.round(weather.temperature_2m)}°C (${getWeatherDetails(weather.weather_code).label})` : "Moderate weather expected"
+      };
+
+      try {
+        const key = `user-booking-addons-${currentUser.email}`;
+        const existing = JSON.parse(localStorage.getItem(key) || "[]");
+        existing.unshift(voucherInfo);
+        localStorage.setItem(key, JSON.stringify(existing));
+      } catch (e) {
+        console.error("Failed to store voucher locally:", e);
+      }
+
+      setVoucherData(voucherInfo);
+      setShowVoucherModal(true);
+      showToast("Booking confirmed! Your travel voucher is ready.", "success");
       setIsBooked(true);
       setBookingForm({ checkInDate: "", numberOfDays: 1, numberOfTravelers: 1 });
       setShowBookingForm(false);
@@ -341,6 +396,65 @@ function PlaceDetails({ places, refetchPlaces }) {
 
   // Get rating directly from place object
   const displayRating = Number(place.rating || 0);
+  const generateMapHtml = (zoom = 14) => {
+    if (!place || !place.latitude || !place.longitude) return "";
+
+    const placeLat = Number(place.latitude);
+    const placeLng = Number(place.longitude);
+    const placeName = (place.name || "").replace(/'/g, "\\'");
+    const placeCity = (place.city || "").replace(/'/g, "\\'");
+    const placeState = (place.state || "").replace(/'/g, "\\'");
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    body, html, #map { margin: 0; padding: 0; width: 100%; height: 100%; background: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .leaflet-popup-content-wrapper { border-radius: 12px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); padding: 4px; }
+    .popup-card { font-size: 13px; line-height: 1.4; color: #1e293b; padding: 4px 6px; }
+    .popup-tag { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 7px; border-radius: 999px; margin-bottom: 5px; }
+    .popup-tag-spot { background: #e0e7ff; color: #1e3a8a; }
+    .popup-title { font-weight: 700; color: #0f172a; margin-bottom: 2px; font-size: 14px; }
+    .popup-sub { color: #64748b; font-size: 12px; margin-bottom: 4px; }
+    .leaflet-control-attribution { font-size: 9px !important; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    const map = L.map('map', {
+      zoomControl: true,
+      scrollWheelZoom: true
+    }).setView([${placeLat}, ${placeLng}], ${zoom});
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
+    }).addTo(map);
+
+    function createPin(color, svgIcon) {
+      return L.divIcon({
+        className: 'custom-pin-marker',
+        html: '<div style="background:' + color + ';width:32px;height:32px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;box-shadow:0 4px 10px rgba(0,0,0,0.35);border:2px solid #ffffff;"><span style="transform:rotate(45deg);display:flex;align-items:center;justify-content:center;">' + svgIcon + '</span></div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 32],
+        popupAnchor: [0, -32]
+      });
+    }
+
+    const spotSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="#ffffff"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>';
+    const spotIcon = createPin('#1e3a8a', spotSvg);
+    
+    const mainMarker = L.marker([${placeLat}, ${placeLng}], { icon: spotIcon }).addTo(map);
+    mainMarker.bindPopup("<div class='popup-card'><span class='popup-tag popup-tag-spot'>Main Attraction</span><div class='popup-title'>${placeName}</div><div class='popup-sub'>${placeCity}, ${placeState} • Entry: ₹${place.entryFee || 0}</div></div>");
+  </script>
+</body>
+</html>`;
+  };
 
   return (
     <div>
@@ -440,63 +554,95 @@ function PlaceDetails({ places, refetchPlaces }) {
           </div>
         </div>
 
-        {/* Map Section */}
+        {/* Multi-Lingual Audio Tour Guide */}
+        <AudioGuidePlayer place={place} />
+
+        {/* Unified Location & Aerial Map Section */}
         {place.latitude && place.longitude && (
           <div className="map-section animate-fade-in">
-            <h2><LuMap style={{ marginRight: "8px", verticalAlign: "middle" }} /> Location Map</h2>
+            <div className="map-header-bar">
+              <h2>
+                {mapViewMode === "street" ? (
+                  <><LuMap style={{ marginRight: "8px", verticalAlign: "middle" }} /> Location & Aerial Map</>
+                ) : (
+                  <><LuCompass style={{ marginRight: "8px", verticalAlign: "middle" }} className="tour-compass-icon" /> Location & Aerial Map</>
+                )}
+              </h2>
+
+              <div className="map-mode-toggle-group">
+                <button
+                  type="button"
+                  className={`map-mode-btn ${mapViewMode === "street" ? "active" : ""}`}
+                  onClick={() => setMapViewMode("street")}
+                >
+                  <LuMap style={{ marginRight: "6px" }} /> Street Map
+                </button>
+                <button
+                  type="button"
+                  className={`map-mode-btn ${mapViewMode === "aerial" ? "active" : ""}`}
+                  onClick={() => setMapViewMode("aerial")}
+                >
+                  <LuCompass style={{ marginRight: "6px" }} /> Satellite Aerial
+                </button>
+              </div>
+            </div>
+
             <div className="map-card">
-              <iframe
-                title="destination-map"
-                width="100%"
-                height="350"
-                style={{ border: "none", width: "100%", height: "350px", display: "block" }}
-                srcDoc={`
-                  <!DOCTYPE html>
-                  <html>
-                  <head>
-                    <meta charset="utf-8" />
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-                    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-                    <style>
-                      body, html, #map { margin: 0; padding: 0; width: 100%; height: 100%; background: #f8fafc; }
-                      .leaflet-control-attribution { font-size: 9px !important; }
-                    </style>
-                  </head>
-                  <body>
-                    <div id="map"></div>
-                    <script>
-                      const map = L.map('map', {
-                        zoomControl: true,
-                        scrollWheelZoom: false
-                      }).setView([${place.latitude}, ${place.longitude}], 13);
-                      
-                      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        maxZoom: 19,
-                        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>'
-                      }).addTo(map);
-                      
-                      L.marker([${place.latitude}, ${place.longitude}]).addTo(map);
-                    </script>
-                  </body>
-                  </html>
-                `}
-              ></iframe>
+              {mapViewMode === "street" ? (
+                <iframe
+                  title="destination-street-map"
+                  width="100%"
+                  height="400"
+                  style={{ border: "none", width: "100%", height: "400px", display: "block" }}
+                  srcDoc={generateMapHtml(14)}
+                />
+              ) : (
+                <iframe
+                  title="destination-aerial-map"
+                  width="100%"
+                  height="400"
+                  style={{ border: "none", width: "100%", height: "400px", display: "block" }}
+                  src={`https://maps.google.com/maps?q=${place.latitude},${place.longitude}&t=k&z=17&ie=UTF8&iwloc=&output=embed`}
+                />
+              )}
               <div className="map-footer-row">
                 <span className="coordinate-badge" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                  <LuMapPin style={{ color: "var(--primary-light)" }} /> Latitude: {place.latitude}
+                  <LuMapPin style={{ color: "var(--primary-light)" }} /> Lat: {place.latitude}, Lng: {place.longitude}
                 </span>
-                <span className="coordinate-badge" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                  <LuMapPin style={{ color: "var(--primary-light)" }} /> Longitude: {place.longitude}
-                </span>
-                <a 
-                  href={`https://www.openstreetmap.org/?mlat=${place.latitude}&mlon=${place.longitude}#map=15/${place.latitude}/${place.longitude}`}
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="osm-link-btn"
-                >
-                  View Large Map ↗
-                </a>
+
+                <div className="map-footer-actions">
+                  {mapViewMode === "aerial" ? (
+                    <a
+                      href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${place.latitude},${place.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="osm-link-btn"
+                      style={{ textDecoration: "none" }}
+                      title="Open Full Google Street View 360° in new tab"
+                    >
+                      <LuExternalLink style={{ marginRight: "6px", verticalAlign: "middle" }} /> Street View 360°
+                    </a>
+                  ) : (
+                    <a
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${place.latitude},${place.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="osm-link-btn"
+                      style={{ textDecoration: "none" }}
+                      title="Get Directions on Google Maps"
+                    >
+                      <LuExternalLink style={{ marginRight: "6px", verticalAlign: "middle" }} /> Directions
+                    </a>
+                  )}
+
+                  <button 
+                    type="button"
+                    onClick={() => setShowLargeMap(true)}
+                    className="osm-link-btn"
+                  >
+                    <LuMaximize2 style={{ marginRight: "6px", verticalAlign: "middle" }} /> Fullscreen
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -505,7 +651,10 @@ function PlaceDetails({ places, refetchPlaces }) {
         {/* Booking Section */}
         <div className="booking-section animate-fade-in">
           <div className="booking-header-row">
-            <h2>Book This Destination</h2>
+            <div>
+              <h2>Book This Destination</h2>
+              <p className="booking-header-sub">Reserve your travel dates for this destination.</p>
+            </div>
             <button 
               className={`booking-toggle-btn add-btn ${isBooked ? "booked-btn" : ""}`}
               onClick={handleBookingToggle}
@@ -555,12 +704,23 @@ function PlaceDetails({ places, refetchPlaces }) {
                   </div>
                 </div>
 
+                <div className="trip-budget-summary-banner">
+                  <div className="budget-summary-row">
+                    <span>Destination Tickets ({(bookingForm.numberOfTravelers || 1)} traveler{(bookingForm.numberOfTravelers || 1) > 1 ? "s" : ""}):</span>
+                    <span>₹{((place.entryFee || 0) * (Number(bookingForm.numberOfTravelers) || 1)).toLocaleString("en-IN")}</span>
+                  </div>
+                  <div className="budget-summary-total">
+                    <span>Total Estimated Budget:</span>
+                    <strong>₹{((place.entryFee || 0) * (Number(bookingForm.numberOfTravelers) || 1)).toLocaleString("en-IN")}</strong>
+                  </div>
+                </div>
+
                 <button 
                   type="submit" 
                   className="submit-btn booking-submit-btn" 
                   disabled={bookingSubmitLoading}
                 >
-                  {bookingSubmitLoading ? "Confirming Booking..." : "Confirm Booking"}
+                  {bookingSubmitLoading ? "Confirming Booking..." : "Confirm Booking & Generate Voucher"}
                 </button>
               </form>
             </div>
@@ -703,6 +863,189 @@ function PlaceDetails({ places, refetchPlaces }) {
           </div>
         </div>
       </div>
+
+      {/* Travel Itinerary & Voucher Modal */}
+      {showVoucherModal && voucherData && (
+        <div className="voucher-modal-overlay" onClick={() => setShowVoucherModal(false)}>
+          <div className="voucher-modal-content animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="voucher-modal-header">
+              <div className="voucher-status-badge">
+                ✓ Reservation Confirmed & Verified
+              </div>
+              <button className="voucher-close-btn" onClick={() => setShowVoucherModal(false)}>✕</button>
+            </div>
+
+            <div className="printable-voucher" id="printable-voucher-section">
+              <div className="voucher-brand-header">
+                <div>
+                  <h2 className="voucher-company-name">YATRA EXPLORER</h2>
+                </div>
+                <div className="voucher-code-box">
+                  <span className="voucher-code-label">Booking Reference</span>
+                  <span className="voucher-code-val">{voucherData.bookingId}</span>
+                </div>
+              </div>
+
+              <div className="voucher-destination-card">
+                <img src={voucherData.placeImage} alt={voucherData.placeName} className="voucher-dest-img" />
+                <div className="voucher-dest-info">
+                  <h3>{voucherData.placeName}</h3>
+                  <p className="voucher-dest-loc">{voucherData.placeCity}, {voucherData.placeState}</p>
+                  <span className="voucher-confirmed-pill">Confirmed Reservation</span>
+                </div>
+              </div>
+
+              <div className="voucher-specs-grid">
+                <div className="voucher-spec-item">
+                  <span className="v-label">Traveler Name</span>
+                  <span className="v-value">{voucherData.userName}</span>
+                </div>
+                <div className="voucher-spec-item">
+                  <span className="v-label">Check-in Date</span>
+                  <span className="v-value">{new Date(voucherData.checkInDate).toLocaleDateString("en-IN", { year: "numeric", month: "short", day: "numeric" })}</span>
+                </div>
+                <div className="voucher-spec-item">
+                  <span className="v-label">Trip Duration</span>
+                  <span className="v-value">{voucherData.numberOfDays} Day{voucherData.numberOfDays > 1 ? "s" : ""}</span>
+                </div>
+                <div className="voucher-spec-item">
+                  <span className="v-label">Group Size</span>
+                  <span className="v-value">{voucherData.numberOfTravelers} Person{voucherData.numberOfTravelers > 1 ? "s" : ""}</span>
+                </div>
+              </div>
+
+              {/* Weather & Travel Reminder */}
+              <div className="voucher-advisory-box">
+                <p><strong>Destination Weather Reminder:</strong> Current forecast is {voucherData.weatherTip}. Carry a valid government photo ID for monument check-in.</p>
+              </div>
+
+              <div className="voucher-footer-row">
+                <div className="voucher-total-block">
+                  <span className="voucher-total-label">Total Estimated Trip Budget</span>
+                  <span className="voucher-total-amount">₹{voucherData.totalEstimatedCost.toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="voucher-modal-actions">
+              <button 
+                type="button"
+                className="voucher-print-btn" 
+                onClick={() => window.print()}
+              >
+                Print / Save as PDF
+              </button>
+              <button 
+                type="button"
+                className="voucher-continue-btn"
+                onClick={() => {
+                  setShowVoucherModal(false);
+                  navigate("/favorites");
+                }}
+              >
+                View in My Bookings →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Large Interactive Map Modal */}
+      {showLargeMap && place && place.latitude && place.longitude && (
+        <div className="large-map-modal-overlay" onClick={() => setShowLargeMap(false)}>
+          <div className="large-map-modal-content animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="large-map-modal-header">
+              <div className="large-map-header-left">
+                <span className="large-map-kicker">
+                  {mapViewMode === "street" ? "Interactive Destination Map" : "Satellite Aerial View"}
+                </span>
+                <h3>{place.name}</h3>
+                <p>{place.city}, {place.state} • {mapViewMode === "street" ? "Road & attraction map" : "High-resolution satellite view"}</p>
+              </div>
+              <div className="large-map-header-actions">
+                <div className="map-mode-toggle-group">
+                  <button
+                    type="button"
+                    className={`map-mode-btn ${mapViewMode === "street" ? "active" : ""}`}
+                    onClick={() => setMapViewMode("street")}
+                  >
+                    <LuMap style={{ marginRight: "4px" }} /> Street Map
+                  </button>
+                  <button
+                    type="button"
+                    className={`map-mode-btn ${mapViewMode === "aerial" ? "active" : ""}`}
+                    onClick={() => setMapViewMode("aerial")}
+                  >
+                    <LuCompass style={{ marginRight: "4px" }} /> Aerial View
+                  </button>
+                </div>
+
+                {mapViewMode === "aerial" ? (
+                  <a
+                    href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${place.latitude},${place.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="google-maps-direct-btn"
+                  >
+                    <LuExternalLink style={{ marginRight: "6px" }} /> Google 360° View
+                  </a>
+                ) : (
+                  <a
+                    href={`https://www.google.com/maps/dir/?api=1&destination=${place.latitude},${place.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="google-maps-direct-btn"
+                  >
+                    <LuExternalLink style={{ marginRight: "6px" }} /> Directions on Google Maps
+                  </a>
+                )}
+                <button 
+                  type="button" 
+                  className="large-map-close-btn" 
+                  onClick={() => setShowLargeMap(false)}
+                  aria-label="Close Map"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <div className="large-map-frame-wrap">
+              {mapViewMode === "street" ? (
+                <iframe
+                  title="large-interactive-map"
+                  width="100%"
+                  height="520"
+                  style={{ border: "none", width: "100%", height: "520px", display: "block" }}
+                  srcDoc={generateMapHtml(14)}
+                />
+              ) : (
+                <iframe
+                  title="large-aerial-map"
+                  width="100%"
+                  height="520"
+                  style={{ border: "none", width: "100%", height: "520px", display: "block" }}
+                  src={`https://maps.google.com/maps?q=${place.latitude},${place.longitude}&t=k&z=17&ie=UTF8&iwloc=&output=embed`}
+                />
+              )}
+            </div>
+
+            <div className="large-map-footer">
+              <span className="coordinate-badge">
+                <LuMapPin style={{ color: "var(--primary-light)", marginRight: "6px" }} />
+                Coordinates: {place.latitude}, {place.longitude}
+              </span>
+              <button 
+                type="button" 
+                className="large-map-done-btn" 
+                onClick={() => setShowLargeMap(false)}
+              >
+                Close Map
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
