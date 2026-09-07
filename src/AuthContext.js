@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { 
   auth, 
   googleProvider, 
+  GoogleAuthProvider,
+  signInWithCredential,
   signInWithPopup, 
   signOut, 
   signInWithEmailAndPassword, 
@@ -66,7 +68,36 @@ export function AuthProvider({ children }) {
   };
 
   const loginWithGoogle = () => {
-    return signInWithPopup(auth, googleProvider);
+    return new Promise((resolve, reject) => {
+      const clientId =
+        process.env.REACT_APP_GOOGLE_CLIENT_ID ||
+        "668531061470-4tuo4pa38cgdq5q98jibq4k22qs0762b.apps.googleusercontent.com";
+
+      if (window.google?.accounts?.oauth2) {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: "email profile openid",
+          callback: async (tokenResponse) => {
+            if (tokenResponse.error) {
+              return reject(tokenResponse);
+            }
+            try {
+              const credential = GoogleAuthProvider.credential(null, tokenResponse.access_token);
+              const userCredential = await signInWithCredential(auth, credential);
+              resolve(userCredential);
+            } catch (err) {
+              reject(err);
+            }
+          },
+          error_callback: (err) => {
+            reject(err);
+          }
+        });
+        client.requestAccessToken();
+      } else {
+        signInWithPopup(auth, googleProvider).then(resolve).catch(reject);
+      }
+    });
   };
 
   const loginWithEmail = (email, password) => {
